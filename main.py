@@ -26,7 +26,6 @@ def run():
             if isinstance(msg, AIMessage) and msg.content:
                 print(f"\nAgent: {msg.content}\n")
                 break
-
         # Check if paused at human_review
         snapshot = app.get_state(config)
         if snapshot.next and "human_review" in snapshot.next:

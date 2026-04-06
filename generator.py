@@ -4,8 +4,8 @@ from pathlib import Path
 import yaml
 from state import ContractState
 
-# Platform constants — fixed for TwinCE
-KAFKA_HOST = "app.twince.de:9092"
+# Platform constants — fixed for platform
+KAFKA_HOST = "kafka.example.com:9092"
 KAFKA_SECURITY = "SASL_SSL"
 KAFKA_FORMAT = "json"
 LICENSE = "CC-BY-NC-4.0"
@@ -58,8 +58,8 @@ def _build_consumers(state: ContractState, qual: dict, project: str, code: str) 
     consumers = {}
 
     # Platform consumer — always present
-    consumers["TwinCE_Platform"] = {
-        "description": "TwinCE platform — main consumer",
+    consumers["Platform"] = {
+        "description": "platform — main consumer",
         "allowed_purposes": [
             "circular_economy_analysis",
             "product_lifecycle_tracking",

@@ -1,5 +1,5 @@
 # =============================================================================
-# TwinCE DATA CONTRACT TEMPLATE v2.1  (DPPO/ESPR aligned)
+# DATA CONTRACT TEMPLATE v2.1  (DPPO/ESPR aligned)
 # =============================================================================
 #
 # ONTOLOGY BASIS:
@@ -20,8 +20,8 @@
 #      - ADD new models if the partner has data not listed here
 #   4. For each model, list which fields are "required" (must be in every message)
 #   5. In "consumers" section:
-#      - TwinCE_Platform is always present (export_profile: full_internal)
-#      - For each RECEIVER partner (e.g. a buyer): add a consumer block with
+#      - Platform consumer is always present (export_profile: full_internal)
+#      - For each RECEIVER partner: add a consumer block with
 #        export_profile and required_fields for receiver-side validation
 #   6. In "export_profile_definitions" section:
 #      - Define which fields each profile includes per model
@@ -43,8 +43,8 @@
 #   order                    Order                    CEON actorODP
 #   product                  Product                  DPPO dpp-odp:Product
 #   material                 Material                 CEON resource, MatOnto
-#   material_composition     ChemicalProperty         DPPO dpp-comp (existing Neo4j label)
-#   energy_consumption       MachineEnergyDaily       ISA95
+#   material_composition     ChemicalProperty         DPPO dpp-comp
+#   energy_consumption       MachineEnergyDaily       ISA95 IEC 62264
 #   emission_factor          EmissionFactor           GHG Protocol
 #   scope1_fuel              Scope1FuelRecord         GHG Protocol Scope 1
 #   scope2_electricity       Scope2ElectricityRecord  GHG Protocol Scope 2
@@ -57,123 +57,81 @@
 # =============================================================================
 
 dataContractSpecification: 1.1.0
-id: <PARTNER_CODE>_data
+id: <PARTNER_CODE>_datacontract
 
 info:
   title: <Partner Name> – Data Contract
   version: 1.0.0
   description: <What data is shared and why>
   owner: <Partner Organization Name>
-  status: active
+  status: draft
   created: <YYYY-MM-DD>
   contact:
     name: <Contact Person>
     email: <email@example.com>
+  project: <PROJECT_PREFIX>
+  project_prefix: <PROJECT_PREFIX>
 
 # =============================================================================
 # CONSUMERS — Who can access this data and under what conditions.
 # The platform validates every incoming request against these policies.
-# TwinCE_Platform is required; add more consumer blocks as needed.
+# Platform consumer is required; add more consumer blocks as needed.
 # =============================================================================
 consumers:
-  TwinCE_Platform:
+  Platform:
     description: >
-      TwinCE platform services including analytics, sustainability dashboards,
+      Platform services including analytics, sustainability dashboards,
       knowledge graph, data lakehouse, and circular economy insights.
-    export_profile: full_internal          # receives all fields from all models
+    export_profile: full_internal
     allowed_purposes:
       - circular_economy_analysis
       - product_lifecycle_tracking
       - sustainability_reporting
       - research_demonstration
     allowed_topics:
-      - <partner>_*
+      - <PROJECT_PREFIX>.<PARTNER_CODE>.*
     data_retention_days: 730
     can_share_externally: false
     requires_audit: true
     max_data_size_mb: 500
-    service_expectations:
-      availability: 99%
-      data_freshness: 24h
-      update_frequency: real_time
-      note: >
-        Research project — best-effort service. Focus on data quality
-        over strict availability guarantees.
     data_quality_requirements:
-      min_completeness: 95
-      min_accuracy: 98
+      min_completeness: 90
+      min_accuracy: 95
       validation_required: true
       reject_invalid: true
-      required_fields: []                  # platform accepts all fields including nullable
-      note: >
-        DATA QUALITY IS CRITICAL for research validity.
-        Platform MUST validate all data before use and report quality
-        issues to the partner within 24 hours.
     constraints:
       - type: rate_limit
         description: Maximum 1000 messages per minute
         value: 1000
         unit: messages/minute
       - type: no_raw_export
-        description: No bulk export of raw data outside TwinCE platform
-      - type: quality_monitoring
-        description: Continuous monitoring of data quality metrics
-        metrics:
-          - completeness
-          - accuracy
-          - timeliness
+        description: No bulk export of raw data outside platform
 
   # ── BUYER PARTNER EXAMPLE ──────────────────────────────────────────────
-  # Add one block per partner that should RECEIVE data from this contract.
-  # The partner_id here must match the partner_id in the platform APIKeyManager.
   # <BUYER_PARTNER_ID>:
   #   description: <Company name and why they receive this data>
-  #   export_profile: customer_exchange_minimum   # filtered view — only fields they need
+  #   export_profile: customer_exchange_minimum
   #   allowed_purposes:
   #     - supply_chain
   #     - quality_verification
   #   allowed_topics:
-  #     - <partner>_dpp                           # typically only the DPP topic
+  #     - <PROJECT_PREFIX>.<PARTNER_CODE>.digital_product_passport
   #   data_retention_days: 90
   #   can_share_externally: false
   #   requires_audit: true
-  #   max_data_size_mb: 10
-  #   data_quality_requirements:
-  #     min_completeness: 85
-  #     validation_required: true
-  #     reject_invalid: false
-  #     required_fields:                          # fields buyer MUST have for compliance
-  #       - pcf_cradle_to_gate                    # needed for buyer's Scope 3 reporting
-  #       - hazardous_substances                  # needed for REACH compliance
-  #       - release_status                        # needed to confirm quality approval
-  #   constraints:
-  #     - type: non_commercial
-  #       description: Supply chain use only, no resale of data
 
   # ── RESEARCH PARTNER EXAMPLE ───────────────────────────────────────────
-  # Partner_Research:
-  #   description: University or research partner for circular economy studies
-  #   export_profile: public_dpp_view             # anonymized view
+  # <RESEARCH_PARTNER_ID>:
+  #   description: Research institution for circular economy studies
+  #   export_profile: public_dpp_view
   #   allowed_purposes:
   #     - circular_economy_analysis
   #     - research_demonstration
   #   allowed_topics:
-  #     - <partner>_dpp
+  #     - <PROJECT_PREFIX>.<PARTNER_CODE>.digital_product_passport
   #   data_retention_days: 365
   #   can_share_externally: false
   #   requires_audit: true
-  #   max_data_size_mb: 50
-  #   data_quality_requirements:
-  #     min_completeness: 85
-  #     min_accuracy: 90
-  #     validation_required: true
-  #     reject_invalid: false
-  #     required_fields: []
-  #   constraints:
-  #     - type: anonymization
-  #       description: Must anonymize sensitive identifiers before use
-  #     - type: non_commercial
-  #       description: Academic research only, no commercial use
 
 default_consumer_policy:
   description: Default policy for unlisted consumers — requires manual approval
@@ -184,8 +142,8 @@ default_consumer_policy:
   requires_audit: true
   max_data_size_mb: 10
   data_quality_requirements:
-    min_completeness: 85
-    min_accuracy: 90
+    min_completeness: 80
+    min_accuracy: 85
     validation_required: true
   constraints:
     - type: manual_approval
@@ -195,20 +153,10 @@ default_consumer_policy:
 
 # =============================================================================
 # EXPORT PROFILE DEFINITIONS
-# Defines which fields each named profile includes, per model.
-# Used by the platform InboxConsumer to filter payloads before delivering
-# to receiver partners. Each consumer entry above references one profile.
-#
-# Rules:
-#   - "*" means all fields (use for full_internal)
-#   - List field names explicitly for restricted profiles
-#   - Only list models that receiver partners are allowed to receive
-#   - Fields not listed are stripped from the payload before delivery
 # =============================================================================
 export_profile_definitions:
 
   full_internal:
-    # TwinCE Platform — receives everything, no filtering
     digital_product_passport: "*"
     product: "*"
     material: "*"
@@ -222,45 +170,36 @@ export_profile_definitions:
     data_carrier: "*"
 
   customer_exchange_minimum:
-    # Buyer partner — minimum fields required for supply chain compliance and ESPR
     digital_product_passport:
       - product_id
       - batch_id
       - material_no
       - spec_standard
       - manufacturing_country
-      - recycled_content_post_consumer
-      - hazardous_substances        # REACH/SCIP legal requirement
-      - pcf_cradle_to_gate          # buyer's Scope 3 reporting
-      - release_status              # quality approval confirmation
-      - data_carrier_url            # ESPR registry link
+      - hazardous_substances
+      - pcf_cradle_to_gate
+      - data_carrier_url
       - timestamp
     product:
       - product_id
       - batch_id
       - material_no
       - spec_standard
-      - manufacturing_country
       - timestamp
 
   supplier_exchange_minimum:
-    # Upstream supplier — what they need to know about how their material was used
     digital_product_passport:
       - product_id
       - batch_id
       - material_no
-      - recycled_content_post_consumer
-      - recycled_content_pre_consumer
       - pcf_cradle_to_gate
       - timestamp
 
   public_dpp_view:
-    # Public / regulators / research — anonymized, no internal identifiers
     digital_product_passport:
       - material_no
       - spec_standard
       - manufacturing_country
-      - recycled_content_post_consumer
       - hazardous_substances
       - pcf_cradle_to_gate
       - data_carrier_url
@@ -269,19 +208,19 @@ export_profile_definitions:
 servers:
   production:
     type: kafka
-    host: app.twince.de:9092, app.twince.de:9093, app.twince.de:9095
+    host: <KAFKA_BROKER_HOST>:<KAFKA_BROKER_PORT>
     format: json
     security: SASL_SSL
 
 terms:
   license: CC-BY-NC-4.0
   confidentiality: internal_partners
-  retention:
-    raw_data_months: 24
-    aggregated_data_months: 36
   usage: >
     Data for sustainability reporting, process optimization,
-    and Digital Product Passport within TwinCE consortium only.
+    and Digital Product Passport within platform consortium only.
+  compliance:
+    - GDPR
+    - IDS_Usage_Control
 
 # =============================================================================
 # MODELS — One block per data topic. Delete what the partner cannot send.
@@ -292,7 +231,7 @@ models:
   # ORDER
   # ─────────────────────────────────────────────────────────────────────
   order:
-    topic: <partner>_order
+    topic: <PROJECT_PREFIX>.<PARTNER_CODE>.order
     description: Customer orders
     type: object
     kg_node: Order
@@ -320,7 +259,7 @@ models:
   # PRODUCT
   # ─────────────────────────────────────────────────────────────────────
   product:
-    topic: <partner>_product
+    topic: <PROJECT_PREFIX>.<PARTNER_CODE>.product
     description: Finished or semi-finished product linked to batch and order
     type: object
     kg_node: Product
@@ -371,7 +310,7 @@ models:
   # MATERIAL
   # ─────────────────────────────────────────────────────────────────────
   material:
-    topic: <partner>_material
+    topic: <PROJECT_PREFIX>.<PARTNER_CODE>.material
     description: Material/alloy master data
     type: object
     kg_node: Material
@@ -387,7 +326,7 @@ models:
         nullable: true
       category:
         type: string
-        description: Material category (e.g. Messing, Kupfer, Aluminium)
+        description: Material category (e.g. Brass, Copper, Aluminium)
         nullable: true
       density_g_per_cm3:
         type: number
@@ -399,13 +338,10 @@ models:
   # MATERIAL COMPOSITION
   # ─────────────────────────────────────────────────────────────────────
   material_composition:
-    topic: <partner>_material_composition
+    topic: <PROJECT_PREFIX>.<PARTNER_CODE>.material_composition
     description: >
       Chemical composition in mass percent, keyed by CAS number.
       Per DPPO dpp-comp — describes the substance-level breakdown of a material.
-      Each component (identified by CAS number) becomes a ChemicalProperty node
-      linked to the parent Material node via IS_COMPOSED_OF.
-      Note: ChemicalProperty is the existing Neo4j label (DPPO equivalent: CompositionInformation).
     type: object
     kg_node: ChemicalProperty
     required:
@@ -414,19 +350,18 @@ models:
     fields:
       material_no:
         type: string
-        description: Reference to material (links to Material node in KG)
+        description: Reference to material
       components:
         type: object
         description: >
           Keys are CAS numbers (e.g. 7440-50-8 for Cu).
           Values are mass fractions in percent.
-          Components matching REACH/SCIP lists will be linked to SubstanceOfConcern nodes.
 
   # ─────────────────────────────────────────────────────────────────────
   # ENERGY CONSUMPTION
   # ─────────────────────────────────────────────────────────────────────
   energy_consumption:
-    topic: <partner>_energy_consumption
+    topic: <PROJECT_PREFIX>.<PARTNER_CODE>.energy_consumption
     description: Energy consumption per machine or process step in kWh
     type: object
     kg_node: MachineEnergyDaily
@@ -456,7 +391,7 @@ models:
   # EMISSION FACTOR
   # ─────────────────────────────────────────────────────────────────────
   emission_factor:
-    topic: <partner>_emission_factor
+    topic: <PROJECT_PREFIX>.<PARTNER_CODE>.emission_factor
     description: CO2 emission factors with source and validity
     type: object
     kg_node: EmissionFactor
@@ -468,7 +403,7 @@ models:
     fields:
       ef_id:
         type: string
-        description: Unique factor identifier (e.g. EF-MESSING)
+        description: Unique factor identifier
       scope:
         type: string
         description: GHG scope (S1, S2-location, S2-market, S3)
@@ -497,7 +432,7 @@ models:
   # SCOPE 1 — Direct fuel emissions
   # ─────────────────────────────────────────────────────────────────────
   scope1_fuel:
-    topic: <partner>_scope1_fuel
+    topic: <PROJECT_PREFIX>.<PARTNER_CODE>.scope1_fuel
     description: Direct emissions from fuels (Scope 1)
     type: object
     kg_node: Scope1FuelRecord
@@ -516,7 +451,7 @@ models:
         description: Reporting period (YYYY-MM)
       fuel_type:
         type: string
-        description: Fuel type (e.g. Erdgas, Diesel)
+        description: Fuel type (e.g. Natural Gas, Diesel)
       energy_kwh:
         type: number
         format: float
@@ -536,7 +471,7 @@ models:
   # SCOPE 2 — Electricity emissions
   # ─────────────────────────────────────────────────────────────────────
   scope2_electricity:
-    topic: <partner>_scope2_electricity
+    topic: <PROJECT_PREFIX>.<PARTNER_CODE>.scope2_electricity
     description: Indirect emissions from purchased electricity (Scope 2)
     type: object
     kg_node: Scope2ElectricityRecord
@@ -575,7 +510,7 @@ models:
   # SCOPE 3 — Upstream material emissions
   # ─────────────────────────────────────────────────────────────────────
   scope3_material:
-    topic: <partner>_scope3_material
+    topic: <PROJECT_PREFIX>.<PARTNER_CODE>.scope3_material
     description: Upstream emissions from purchased materials (Scope 3 Cat.1)
     type: object
     kg_node: Scope3MaterialRecord
@@ -624,7 +559,7 @@ models:
   # SCOPE 3 — Transport emissions
   # ─────────────────────────────────────────────────────────────────────
   scope3_transport:
-    topic: <partner>_scope3_transport
+    topic: <PROJECT_PREFIX>.<PARTNER_CODE>.scope3_transport
     description: Transport emissions (Scope 3 Cat.4/9)
     type: object
     kg_node: Scope3TransportRecord
@@ -663,7 +598,7 @@ models:
   # PCF AGGREGATION
   # ─────────────────────────────────────────────────────────────────────
   pcf_aggregation:
-    topic: <partner>_pcf_aggregation
+    topic: <PROJECT_PREFIX>.<PARTNER_CODE>.pcf_aggregation
     description: Aggregated PCF per batch linking Scope 1+2+3 to product
     type: object
     kg_node: PCFAggregation
@@ -710,14 +645,11 @@ models:
   # DIGITAL PRODUCT PASSPORT
   # ─────────────────────────────────────────────────────────────────────
   digital_product_passport:
-    topic: <partner>_dpp
+    topic: <PROJECT_PREFIX>.<PARTNER_CODE>.digital_product_passport
     description: >
       Digital Product Passport (DPP) per EU ESPR Regulation 2024/1781 (Articles 9-10).
-      This is the information layer *about* a product, not the product itself.
       Per DPPO (dpp-odp:describes): (DigitalProductPassport)-[:DESCRIBES]->(Product).
-      The DPP is mandatory for ESPR product categories from 2027.
-      It covers all 12 Annex III data element categories: identity, composition,
-      performance, sustainability, circularity, supply chain, compliance, etc.
+      Mandatory for ESPR product categories from 2027.
     type: object
     kg_node: DigitalProductPassport
     required:
@@ -728,8 +660,7 @@ models:
       product_id:
         type: string
         description: >
-          Unique product identifier. Used as the link to the Product node in KG.
-          Per ESPR Annex III: Unique Product Identifier (UPI).
+          Unique product identifier. Per ESPR Annex III: Unique Product Identifier (UPI).
       gtin:
         type: string
         description: Global Trade Item Number (GS1 standard; ESPR Annex III category 1)
@@ -740,13 +671,11 @@ models:
         nullable: true
       material_no:
         type: string
-        description: Material/alloy number (links to Material node; ESPR Annex III category 3 — composition)
+        description: Material/alloy number (links to Material node; ESPR Annex III category 3)
       spec_standard:
         type: string
         description: >
-          Applicable standard (e.g. EN 12164).
-          In KG: (DigitalProductPassport)-[:CERTIFIES_AGAINST]->(Standard).
-          Per DPPO dpp-core, ESPR Article 9(1)(a).
+          Applicable standard (e.g. EN 12164). Per DPPO dpp-core, ESPR Article 9(1)(a).
         nullable: true
       manufacturing_site:
         type: string
@@ -761,8 +690,7 @@ models:
         description: >
           Substances of concern per REACH/SCIP (CAS numbers or substance IDs).
           Per DPPO dpp-comp:SubstanceOfConcern, ESPR Article 9(1)(i).
-          In KG: (DigitalProductPassport)-[:CONTAINS_SUBSTANCE_OF_CONCERN]->(SubstanceOfConcern).
-          Must include all SVHC (Substances of Very High Concern) above 0.1% w/w.
+          Must include all SVHC above 0.1% w/w.
         nullable: true
       pcf_cradle_to_gate:
         type: number
@@ -780,23 +708,17 @@ models:
         format: uri
         description: >
           URL pointing to the DPP registry entry.
-          Per ESPR Article 9(1)(r): a data carrier (QR code, RFID, URL) must be
-          permanently attached to the product or packaging.
-          In KG: (DigitalProductPassport)-[:ACCESSED_VIA]->(DataCarrier).
+          Per ESPR Article 9(1)(r).
         nullable: true
 
   # ─────────────────────────────────────────────────────────────────────
   # DATA CARRIER  (ESPR Article 9(1)(r) — required from 2027)
   # ─────────────────────────────────────────────────────────────────────
   data_carrier:
-    topic: <partner>_data_carrier
+    topic: <PROJECT_PREFIX>.<PARTNER_CODE>.data_carrier
     description: >
-      Physical or digital data carrier that provides access to the DPP.
-      Per ESPR 2024/1781 Article 9(1)(r): a data carrier must be permanently
-      attached to or printed on the product or its packaging, enabling
-      consumers and authorities to access the full DPP.
-      Supported types: QR code (recommended), RFID, NFC, URL.
-      In KG: (DigitalProductPassport)-[:ACCESSED_VIA]->(DataCarrier).
+      Physical or digital data carrier providing access to the DPP.
+      Per ESPR 2024/1781 Article 9(1)(r).
     type: object
     kg_node: DataCarrier
     required:
@@ -818,12 +740,12 @@ models:
           Must remain accessible for 10 years per ESPR Article 9(2)(a).
       carrier_id:
         type: string
-        description: Unique carrier identifier (e.g. RFID chip ID, QR code hash)
+        description: Unique carrier identifier
         nullable: true
       issued_date:
         type: string
         format: date
-        description: Date the carrier was issued / printed
+        description: Date the carrier was issued
         nullable: true
 
   # ─────────────────────────────────────────────────────────────────────
@@ -831,25 +753,6 @@ models:
   # ─────────────────────────────────────────────────────────────────────
   # If the partner sends data that does not fit any model above,
   # add a new model here. Set kg_node: null if it is lakehouse only.
-  #
-  # Example:
-  #
-  # sawing_details:
-  #   topic: bkm_sawing_details
-  #   description: Sawing-specific production parameters
-  #   type: object
-  #   kg_node: null
-  #   required:
-  #     - product_id
-  #   fields:
-  #     product_id:
-  #       type: string
-  #       description: Reference to product
-  #     cut_length:
-  #       type: number
-  #       format: float
-  #       description: Total cutting length in mm
-  #       unit: mm
 
 # =============================================================================
 # QUALITY
@@ -879,12 +782,3 @@ examples:
       order_id: "ORD-2025-0001"
       material_no: "CuZn39Pb3"
       timestamp: "2025-06-15T14:30:00Z"
-
-  - model: material_composition
-    description: Example brass composition
-    data:
-      material_no: "CuZn39Pb3"
-      components:
-        "7440-50-8": 59.5
-        "7440-66-6": 37.0
-        "7439-92-1": 3.0

@@ -21,7 +21,7 @@ def save_partner_info(
         email: Data steward contact email
         description: One sentence description of what data they share
         status: draft or active
-        project: Platform project prefix e.g. twince — used in Kafka topics
+        project: Platform project prefix e.g. platform — used in Kafka topics
     """
     partner = {
         "name": name,
@@ -81,7 +81,7 @@ def add_model(
         source = "custom"
 
     partner = state.get("partner_info") or {}
-    project = partner.get("project", "twince")
+    project = partner.get("project", "platform")
     code = partner.get("code", "unknown")
 
     model = {
