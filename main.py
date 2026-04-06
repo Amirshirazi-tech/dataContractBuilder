@@ -30,8 +30,13 @@ def run():
         # Check if paused at human_review
         snapshot = app.get_state(config)
         if snapshot.next and "human_review" in snapshot.next:
-            print("\n[INTERRUPT] Graph paused for your confirmation.")
-            user_input = input("You: ").strip()
+            # Find and print the show_summary ToolMessage
+            for msg in reversed(state["messages"]):
+                if hasattr(msg, "content") and "Contract ID:" in str(msg.content):
+                    print(f"\n{msg.content}\n")
+                    break
+            print("\n[INTERRUPT] Please review the summary above.")
+            user_input = input("You: (yes to confirm / describe corrections): ").strip()
             if user_input.lower() in ("exit", "quit"):
                 break
             # Resume graph with user's response added to messages
@@ -42,8 +47,15 @@ def run():
             continue
 
         # Check if done
-        if state.get("phase") == "generating":
-            print("\nContract ready for generation.")
+        if state.get("phase") == "done":
+            yaml_str = state.get("generated_yaml", "")
+            print("\n--- Generated Contract Preview ---")
+            print(yaml_str[:500])
+
+            output_path = f"{state['partner_info']['contract_id']}.yaml"
+            with open(output_path, "w") as f:
+                f.write(yaml_str)
+            print(f"\nContract saved to: {output_path}")
             break
 
         # Normal turn — get user input

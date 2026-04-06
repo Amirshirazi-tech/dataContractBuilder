@@ -1,4 +1,6 @@
-from typing import Annotated
+# from typing import Annotated
+from generator import generate_contract_yaml
+from validator import validate_contract
 from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
 from langgraph.checkpoint.memory import MemorySaver
 from langchain_anthropic import ChatAnthropic
@@ -15,6 +17,35 @@ import os
 
 load_dotenv()
 
+def generate_node(state: ContractState) -> dict:
+    """Generate the YAML contract from collected state."""
+    yaml_str = generate_contract_yaml(state)
+    return {"generated_yaml": yaml_str, "validation_errors": []}
+from generator import generate_contract_yaml
+from validator import validate_contract
+from langchain_core.messages import SystemMessage
+
+def generate_node(state: ContractState) -> dict:
+    """Generate the YAML contract from collected state."""
+    yaml_str = generate_contract_yaml(state)
+    return {"generated_yaml": yaml_str, "validation_errors": []}
+
+def validate_node(state: ContractState) -> dict:
+    """Validate the generated YAML."""
+    yaml_str = state.get("generated_yaml", "")
+    errors = validate_contract(yaml_str)
+    if errors:
+        error_msg = (
+            "Contract validation failed:\n"
+            + "\n".join(f"- {e}" for e in errors)
+            + "\n\nPlease explain these to the user and ask which to fix."
+        )
+        return {
+            "validation_errors": errors,
+            "phase": "modeling",
+            "messages": [SystemMessage(content=error_msg)],
+        }
+    return {"validation_errors": [], "phase": "done"}
 
 def agent_node(state:ContractState):
     backend = os.getenv("MODEL_BACKEND", "ollama")
@@ -55,7 +86,7 @@ def agent_node(state:ContractState):
     if phase == "reviewing":
         extra = "\nThe summary has been shown. Ask the user to confirm or correct it. If confirmed, call finalize_contract immediately."
 
-    system = SystemMessage(content=SYSTEM_PROMPT + extra)
+    system = SystemMessage(content=system_content + extra)
     messages = [system] + state.get("messages", [])
     response = llm_with_tools.invoke(messages)
     return {"messages": [response]}
@@ -80,122 +111,53 @@ graph.add_node("tools", ToolNode([save_partner_info, add_model,
                                   suggest_quality_rules, add_consumer,
                                   show_summary, finalize_contract]))
 graph.add_node("human_review", human_review_node)
+graph.add_node("generate", generate_node)      # ← new
+graph.add_node("validate", validate_node)
 graph.set_entry_point("agent")
-graph.add_conditional_edges("agent", route_from_agent, {"tools" : "tools", END:END})
+graph.add_conditional_edges("agent",
+                            route_from_agent,
+                            {"tools" : "tools", END:END})
 
 # After tools — check if we need human review
 def route_from_tools(state: ContractState) -> str:
     if state.get("phase") == "reviewing":
         return "human_review"
     if state.get("phase") == "generating":
-        return "generate"   # we will add this later
+        return "generate"        # ← now this works
     return "agent"
 
 graph.add_conditional_edges("tools", route_from_tools, {
     "human_review": "human_review",
+    "generate": "generate",
     "agent": "agent"
 })
 graph.add_edge("human_review", "agent")
+graph.add_edge("generate", "validate")         # ← new
+
+def route_from_validate(state: ContractState) -> str:
+    if state.get("validation_errors"):
+        return "agent"
+    return END
+
+graph.add_conditional_edges("validate", route_from_validate, {
+    "agent": "agent",
+    END: END
+})
+
+
 app = graph.compile(
     checkpointer=MemorySaver(),
     interrupt_before=["human_review"]
 )
-try:
-    display(Image(app.get_graph().draw_mermaid_png()))
-except Exception:
-    # This might fail if certain dependencies aren't installed
-    print("Could not display graph directly.")
-
-# Option B: Save the graph to a PNG file
-with open("graph_visualization.png", "wb") as f:
-    f.write(app.get_graph().draw_mermaid_png())
-
-# if __name__ == "__main__":
-#     graph = StateGraph(ContractState)
-#     graph.add_node("agent", agent_node)
-#     graph.add_node("tools", ToolNode([save_partner_info, add_model, suggest_quality_rules, add_consumer]))
-#     graph.set_entry_point("agent")
-#     graph.add_conditional_edges("agent", route_from_agent, {"tools" : "tools", END:END})
-#     graph.add_edge("tools", "agent")
-#     app = graph.compile()
-#     try:
-#         display(Image(app.get_graph().draw_mermaid_png()))
-#     except Exception:
-#         # This might fail if certain dependencies aren't installed
-#         print("Could not display graph directly.")
-#
-#     # Option B: Save the graph to a PNG file
-#     with open("graph_visualization.png", "wb") as f:
-#         f.write(app.get_graph().draw_mermaid_png())
 
 
-    # result = app.invoke({
-    #     "messages": [HumanMessage(content="Hello, I want to create a contract for SpaceX.")],
-    #     "phase": "intake",
-    #     "partner_info": None,
-    #     "models": [],
-    #     "consumers": [],
-    #     "validation_errors": []
-    # })
-    #
-    # # Print the last message
-    # print(result["messages"][-1].content)
-    # print(result["partner_info"])
-    # print(result["phase"])
-    #---------------------------
-    # result = app.invoke({
-    #     "messages": [HumanMessage(content="I want to share product and material data.")],
-    #     "phase": "modeling",
-    #     "partner_info": {"name": "SpaceX", "code": "spacex"},
-    #     "models": [],
-    #     "consumers": [],
-    #     "validation_errors": []
-    # })
-    # print(result["models"])
-    # for msg in result["messages"]:
-    #     print(type(msg).__name__, ":", msg.content)
-    #     if hasattr(msg, "tool_calls") and msg.tool_calls:
-    #         print("  TOOL CALLS:", msg.tool_calls)
-    #     print("---")
+if __name__ == "__main__":
+    try:
+        display(Image(app.get_graph().draw_mermaid_png()))
+    except Exception:
+        # This might fail if certain dependencies aren't installed
+        print("Could not display graph directly.")
 
-    # print(result["models"])
-    #---------------------------
-    # result = app.invoke({
-    #     "messages": [HumanMessage(content="Suggest quality rules for the material model.")],
-    #     "phase": "modeling",
-    #     "partner_info": {"name": "SpaceX", "code": "spacex"},
-    #     "models": [
-    #         {'key': 'material', 'name': 'Materials', 'description': 'Material data',
-    #          'fields': {'material_no': {'type': 'string', 'description': 'Internal material number'},
-    #                     'material_name': {'type': 'string', 'description': 'Human-readable name', 'nullable': True},
-    #                     'category': {'type': 'string', 'description': 'Material category', 'nullable': True},
-    #                     'density_g_per_cm3': {'type': 'number', 'format': 'float', 'description': 'Density in g/cm3',
-    #                                           'nullable': True}},
-    #          'required': ['material_no'], 'kg_node': 'Material', 'source': 'template'}
-    #     ],
-    #     "consumers": [],
-    #     "validation_errors": []
-    # })
-    #
-    # print(result["messages"][-1].content)
-    # # Print all messages to see what actually happened
-    # for msg in result["messages"]:
-    #     print(type(msg).__name__, ":", msg.content)
-    #     print("---")
-    #------------------------
-    # result = app.invoke({
-    #     "messages": [HumanMessage(
-    #         content="Add University of Siegen as a consumer for research purposes only. They cannot share externally. Retention 365 days. Completeness 80, accuracy 85.")],
-    #     "phase": "modeling",
-    #     "partner_info": {"name": "SpaceX", "code": "spacex"},
-    #     "models": [],
-    #     "consumers": [],
-    #     "validation_errors": []
-    # })
-    #
-    # print(result["consumers"])
-    # for msg in result["messages"]:
-    #     print(type(msg).__name__, ":", msg.content)
-    #     if hasattr(msg, "tool_calls") and msg.tool_calls:
-    #         print("  TOOL CALLS:", msg.tool_calls)
-    #     print("---")
+    # Option B: Save the graph to a PNG file
+    with open("graph_visualization.png", "wb") as f:
+        f.write(app.get_graph().draw_mermaid_png())
