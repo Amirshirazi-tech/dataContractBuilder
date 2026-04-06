@@ -257,3 +257,9 @@ The predefined model library covers EU Digital Product Passport (ESPR 2024/1781)
 **Dr. Amir Noori Shirazi**  
 Data Architect & Software Development Lead  
 [LinkedIn](https://www.linkedin.com/in/amirnoorishirazi) · [GitHub](https://github.com/Amirshirazi-tech)
+
+---
+
+## License
+
+MIT License — see [LICENSE](LICENSE) for details.
