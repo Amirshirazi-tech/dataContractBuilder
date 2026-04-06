@@ -13,10 +13,6 @@ class ContractState(TypedDict, total=False):
     partner_info: Optional[dict]
     models: Annotated[list, replace]
     consumers: Annotated[list, replace]
-    kafka_broker: str
-    kafka_security: str
-    license: str
-    compliance: list
     unknown_fields: list
     extension_proposals: list
     confirmed_extensions: list

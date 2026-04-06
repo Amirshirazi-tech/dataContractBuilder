@@ -1,6 +1,6 @@
 from langgraph.types import Command
 from typing import Annotated, Optional
-from langchain_core.tools import tool, InjectedToolCallId
+from langchain_core.tools import  InjectedToolCallId
 from langchain_core.messages import ToolMessage
 import yaml
 from pathlib import Path
@@ -11,8 +11,7 @@ def save_partner_info(
         email: str,
         description: str,
         status: str,
-        retention_days: int,
-        quality_level: str,
+        project: str,
         tool_call_id: Annotated[str, InjectedToolCallId],
 )-> Command:
     """Save partner and company information. Call once after collecting all partner details
@@ -22,8 +21,7 @@ def save_partner_info(
         email: Data steward contact email
         description: One sentence description of what data they share
         status: draft or active
-        retention_days: How long to retain data in days, suggest 365
-        quality_level: flexible, standard, or strict
+        project: Platform project prefix e.g. twince — used in Kafka topics
     """
     partner = {
         "name": name,
@@ -31,8 +29,8 @@ def save_partner_info(
         "email": email,
         "description": description,
         "status": status,
-        "retention_days": retention_days,
-        "quality_level": quality_level,
+        "project": project,
+        "contract_id": f"{code}_datacontract",
     }
 
     return Command(update={"partner_info": partner,
@@ -82,11 +80,16 @@ def add_model(
         required = []
         source = "custom"
 
+    partner = state.get("partner_info") or {}
+    project = partner.get("project", "twince")
+    code = partner.get("code", "unknown")
+
     model = {
         "key": key,
         "name": name,
         "description": description,
         "fields": fields,
+        "topic": f"{project}.{code}.{key}",
         "required": required,
         "kg_node": kg_node,  # None = lakehouse only
         "source": source,
@@ -199,10 +202,7 @@ def add_consumer(
         name: str,
         description: str,
         allowed_purposes: str,
-        retention_days: int,
-        can_share_externally: bool,
-        min_completeness: int,
-        min_accuracy: int,
+        allowed_models: str,  # ← new: comma separated e.g. "product,material" or "all"
         export_profile: str,
         tool_call_id: Annotated[str, InjectedToolCallId],
         state: Annotated[dict, InjectedState],
@@ -210,26 +210,28 @@ def add_consumer(
     """Add a data consumer to the contract.
 
     Args:
-        name: Consumer identifier e.g. Research_University, Consulting_Partner
+        name: Consumer identifier e.g. Research_University
         description: Who this consumer is
-        allowed_purposes: Comma separated list of purposes e.g. research,reporting
-        retention_days: How long consumer may retain data in days
-        can_share_externally: Whether consumer can share data outside their org
-        min_completeness: Minimum data completeness percent required 0 to 100
-        min_accuracy: Minimum data accuracy percent required 0 to 100
-        export_profile: Which export profile to use. Options: full_internal,
-                        customer_exchange_minimum, supplier_exchange_minimum,
-                        public_dpp_view
+        allowed_purposes: Comma separated purposes e.g. research,reporting
+        allowed_models: Comma separated model keys this consumer can access
+                        e.g. product,material or "all" for everything
+        export_profile: full_internal, customer_exchange_minimum,
+                        supplier_exchange_minimum, public_dpp_view
     """
+    # Resolve "all" to actual model keys from state
+    available_models = [m["key"] for m in state.get("models", [])]
+
+    if allowed_models.strip().lower() == "all":
+        models_list = available_models
+    else:
+        models_list = [m.strip() for m in allowed_models.split(",")]
+
     consumer = {
         "name": name,
         "description": description,
         "allowed_purposes": [p.strip() for p in allowed_purposes.split(",")],
-        "retention_days": retention_days,
-        "can_share_externally": can_share_externally,
+        "allowed_models": models_list,  # ← stored here
         "requires_audit": True,
-        "min_completeness": min_completeness,
-        "min_accuracy": min_accuracy,
         "export_profile": export_profile,
     }
 
@@ -240,7 +242,72 @@ def add_consumer(
     return Command(update={
         "consumers": existing,
         "messages": [ToolMessage(
-            content=f"Consumer '{name}' added with export profile '{export_profile}'.",
+            content=f"Consumer '{name}' added — can access: {', '.join(models_list)}.",
+            tool_call_id=tool_call_id,
+        )],
+    })
+
+def show_summary(
+        tool_call_id: Annotated[str, InjectedToolCallId],
+        state: Annotated[dict, InjectedState],
+)-> Command:
+    """Generate a summary of everything collected so far and present it to the user.
+    Call this when all models and consumers have been collected, before finalizing.
+    """
+    p = state.get("partner_info") or {}
+    models = state.get("models", [])
+    consumers = state.get("consumers", [])
+    if not models:
+        return Command(update={
+            "messages": [ToolMessage(
+                content="Cannot generate summary — no models have been added yet. "
+                        "Please add at least one model first.",
+                tool_call_id=tool_call_id,
+            )]
+        })
+    lines = []
+    lines.append(f"Contract ID: {p.get('contract_id', '?')}")
+    lines.append(f"Partner: {p.get('name', '?')} ({p.get('code', '?')})")
+    lines.append(f"Project: {p.get('project', '?')}")
+    lines.append(f"Email: {p.get('email', '?')}")
+    lines.append(f"Status: {p.get('status', '?')}")
+    lines.append(f"Quality level: {p.get('quality_level', '?')}")
+    lines.append("")
+
+    lines.append(f"Models ({len(models)}):")
+    for m in models:
+        lines.append(f"  - {m['key']} → topic: {m.get('topic', '?')} ({len(m.get('fields', {}))} fields)")
+
+    lines.append("")
+    lines.append(f"Consumers ({len(consumers)}):")
+    for c in consumers:
+        lines.append(
+            f"  - {c['name']}: {', '.join(c.get('allowed_purposes', []))} "
+            f"/ models: {', '.join(c.get('allowed_models', ['all']))} "
+            f"/ profile: {c.get('export_profile', '?')}"
+        )
+
+    summary_text = "\n".join(lines)
+
+    return Command(update={
+        "phase": "reviewing",
+        "messages": [ToolMessage(
+            content=f"Here is the contract summary:\n\n{summary_text}\n\nDoes this look correct? Shall I generate the contract?",
+            tool_call_id=tool_call_id,
+        )],
+    })
+
+
+def finalize_contract(
+    tool_call_id: Annotated[str, InjectedToolCallId],
+) -> Command:
+    """Finalize the contract and trigger YAML generation.
+    Call only when user has explicitly approved the summary.
+    """
+    return Command(update={
+        "phase": "generating",
+        "messages": [ToolMessage(
+            content="Finalizing contract — generating YAML...",
             tool_call_id=tool_call_id,
         )],
     })

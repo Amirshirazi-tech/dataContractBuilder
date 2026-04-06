@@ -1,5 +1,6 @@
 from typing import Annotated
 from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
+from langgraph.checkpoint.memory import MemorySaver
 from langchain_anthropic import ChatAnthropic
 from langchain_openai import ChatOpenAI
 from state import ContractState
@@ -8,7 +9,7 @@ from langgraph.prebuilt import ToolNode
 from IPython.display import Image, display
 from dotenv import load_dotenv
 from langchain_ollama import ChatOllama
-from tools import save_partner_info, add_model, suggest_quality_rules, add_consumer
+from tools import save_partner_info, add_model, suggest_quality_rules, add_consumer, show_summary, finalize_contract
 from prompts import SYSTEM_PROMPT
 import os
 
@@ -32,7 +33,7 @@ def agent_node(state:ContractState):
     else:
         llm = ChatOllama(model=os.getenv("OLLAMA_MODEL", "llama3.1:8b"), base_url="https://ollama.wineme.wiwi.uni-siegen.de", temperature=0)
 
-    llm_with_tools=llm.bind_tools([save_partner_info, add_model, suggest_quality_rules, add_consumer])
+    llm_with_tools=llm.bind_tools([save_partner_info, add_model, suggest_quality_rules, add_consumer, show_summary, finalize_contract])
     context_parts = []
     if state.get("partner_info"):
         p = state["partner_info"]
@@ -48,7 +49,13 @@ def agent_node(state:ContractState):
     system_content = SYSTEM_PROMPT
     if context:
         system_content += f"\n\n## Current state\n{context}"
-    system = SystemMessage(content=SYSTEM_PROMPT)
+
+    phase = state.get("phase", "intake")
+    extra = ""
+    if phase == "reviewing":
+        extra = "\nThe summary has been shown. Ask the user to confirm or correct it. If confirmed, call finalize_contract immediately."
+
+    system = SystemMessage(content=SYSTEM_PROMPT + extra)
     messages = [system] + state.get("messages", [])
     response = llm_with_tools.invoke(messages)
     return {"messages": [response]}
@@ -62,13 +69,37 @@ def route_from_agent(state:ContractState):
         return "tools"
     return END
 
+# Add a human_review node
+def human_review_node(state: ContractState) -> dict:
+    # This node does nothing — it is just the pause point
+    return {}
+
 graph = StateGraph(ContractState)
 graph.add_node("agent", agent_node)
-graph.add_node("tools", ToolNode([save_partner_info, add_model, suggest_quality_rules, add_consumer]))
+graph.add_node("tools", ToolNode([save_partner_info, add_model,
+                                  suggest_quality_rules, add_consumer,
+                                  show_summary, finalize_contract]))
+graph.add_node("human_review", human_review_node)
 graph.set_entry_point("agent")
 graph.add_conditional_edges("agent", route_from_agent, {"tools" : "tools", END:END})
-graph.add_edge("tools", "agent")
-app = graph.compile()
+
+# After tools — check if we need human review
+def route_from_tools(state: ContractState) -> str:
+    if state.get("phase") == "reviewing":
+        return "human_review"
+    if state.get("phase") == "generating":
+        return "generate"   # we will add this later
+    return "agent"
+
+graph.add_conditional_edges("tools", route_from_tools, {
+    "human_review": "human_review",
+    "agent": "agent"
+})
+graph.add_edge("human_review", "agent")
+app = graph.compile(
+    checkpointer=MemorySaver(),
+    interrupt_before=["human_review"]
+)
 try:
     display(Image(app.get_graph().draw_mermaid_png()))
 except Exception:
