@@ -1,0 +1,7 @@
+.env
+__pycache__/
+*.pyc
+.idea/
+*.yaml
+graph_visualization.png
+*_datacontract.yaml
