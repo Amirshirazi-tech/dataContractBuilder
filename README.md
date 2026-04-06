@@ -110,7 +110,7 @@ contract-agent/
 ## Quick Start
 
 ```bash
-git clone https://github.com/Amirshirazi-tech/contract-agent
+git clone https://github.com/Amirshirazi-tech/dataContractBuilder
 cd contract-agent
 
 pip install -r requirements.txt
