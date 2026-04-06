@@ -1,8 +1,10 @@
 # Data Contract Agent
 
 > A conversational CLI agent that generates valid **DPCS 1.1.0 data contracts** from natural language — powered by LangGraph with real human-in-the-loop interrupts.
+> 
+> Domain: **circular economy data sharing for manufacturing SMEs** — covering Digital Product Passport (EU ESPR 2024/1781), GHG Protocol Scope 1/2/3 emissions, and ISO 14067 Product Carbon Footprint.
 
-Built as a standalone learning project to explore LangGraph's agent architecture, tool calling, state management, and graph interruption patterns — grounded in a real industrial use case from the circular economy domain for manufacturing SMEs.
+Built as a standalone learning project to explore LangGraph's agent architecture, tool calling, state management, and graph interruption patterns — grounded in a real industrial use case.
 
 ---
 
@@ -98,7 +100,7 @@ contract-agent/
 ├── contract/
 │   └── data_contract_template.yaml   # Predefined model library (12 models)
 ├── docs/
-│   └── graph.png             # Graph visualization — commit this file
+│   └── graph.png             # Graph visualization
 ├── .env.example              # Environment variable template
 └── requirements.txt
 ```
@@ -150,6 +152,8 @@ The agent loads these models automatically from `contract_template.yaml` — no 
 
 `product` · `material` · `order` · `energy_consumption` · `scope1_fuel` · `scope2_electricity` · `scope3_material` · `scope3_transport` · `pcf_aggregation` · `digital_product_passport`
 
+Models are grounded in established ontologies: **DPPO** (Digital Product Passport Ontology), **CEON** (Circular Economy Ontology Network), **GHG Protocol**, **ISO 14067**, and **ISA-95/IEC 62264**.
+
 For any model not in this list, the agent detects it as a custom model and collects field definitions through conversation.
 
 ---
@@ -172,7 +176,7 @@ servers:
     host: broker.example.com:9092
     topics:
       - platform.acme_gmbh.product
-      - platform.acme_gmbh.material
+      - platform.acme_gmbh.digital_product_passport
     format: json
     security: SASL_SSL
 models:
@@ -185,6 +189,11 @@ models:
         type: string
         description: Unique product identifier
       ...
+  digital_product_passport:
+    topic: platform.acme_gmbh.digital_product_passport
+    kg_node: DigitalProductPassport
+    required: [product_id, material_no, pcf_cradle_to_gate]
+    ...
 terms:
   license: CC-BY-NC-4.0
   compliance: [GDPR, IDS_Usage_Control]
@@ -237,7 +246,9 @@ rich>=13.0.0
 
 This agent was built as a learning project to understand LangGraph from first principles — writing every node, edge, and routing function manually rather than using higher-level abstractions.
 
-The predefined model library covers EU Digital Product Passport (ESPR), GHG Protocol Scope 1/2/3, ISO 14067 PCF, and ISA-95 production data — grounded in CEON, DPPO, MatOnto, and GHG Protocol ontologies.
+The domain is circular economy data infrastructure for manufacturing SMEs — specifically the challenge of creating machine-readable governance instruments (data contracts) that enable trusted data sharing across supply chains while complying with EU ESPR Digital Product Passport requirements.
+
+The predefined model library covers EU Digital Product Passport (ESPR 2024/1781), GHG Protocol Scope 1/2/3, ISO 14067 PCF, and ISA-95 production data — grounded in CEON, DPPO, MatOnto, and GHG Protocol ontologies.
 
 ---
 
