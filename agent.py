@@ -15,12 +15,11 @@ from tools import save_partner_info, add_model, suggest_quality_rules, add_consu
 from prompts import SYSTEM_PROMPT
 import os
 
-load_dotenv()
-
-
 from generator import generate_contract_yaml
 from validator import validate_contract
 from langchain_core.messages import SystemMessage
+
+load_dotenv()
 
 def generate_node(state: ContractState) -> dict:
     """Generate the YAML contract from collected state."""
