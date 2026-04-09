@@ -1,6 +1,7 @@
 from langgraph.types import Command
 from typing import Annotated, Optional
 from langchain_core.tools import  InjectedToolCallId
+from langgraph.prebuilt import InjectedState
 from langchain_core.messages import ToolMessage
 import yaml
 from pathlib import Path
@@ -49,7 +50,7 @@ def load_template_model(model_key: str)-> dict | None:
     return template.get("models", {}).get(model_key)
 
 
-from langgraph.prebuilt import InjectedState
+
 
 
 def add_model(
