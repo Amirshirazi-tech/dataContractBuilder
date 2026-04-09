@@ -17,10 +17,7 @@ import os
 
 load_dotenv()
 
-def generate_node(state: ContractState) -> dict:
-    """Generate the YAML contract from collected state."""
-    yaml_str = generate_contract_yaml(state)
-    return {"generated_yaml": yaml_str, "validation_errors": []}
+
 from generator import generate_contract_yaml
 from validator import validate_contract
 from langchain_core.messages import SystemMessage
